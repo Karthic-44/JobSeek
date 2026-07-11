@@ -21,5 +21,5 @@ public interface AuthService {
 
     ResponseCookie logoutUser();
 
-    UserResponse getAllSellers(Pageable pageable);
+    UserResponse getAllRecruiters(Pageable pageable);
 }

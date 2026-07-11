@@ -27,7 +27,7 @@ public class ApplicationController {
     @Autowired
     ApplicationService applicationService;
 
-    @PostMapping("/admin/application/create")
+    @PostMapping("/public/application/create")
     public ResponseEntity<ApplicationDTO> CreateApplication(@Valid @RequestBody ApplicationDTO applicationDTO) {
 
         ApplicationDTO savedApplicationDTO = applicationService.createApplication(applicationDTO);

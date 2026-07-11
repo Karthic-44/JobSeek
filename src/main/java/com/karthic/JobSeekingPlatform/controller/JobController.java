@@ -64,5 +64,14 @@ public class JobController {
         JobDTO updatedJobDTO = jobPostingService.updateJob(jobId,jobDTO);
         return new ResponseEntity<>(updatedJobDTO,HttpStatus.OK);
     }
+    @GetMapping("/public/jobs/{jobId}")
+public ResponseEntity<JobDTO> getJobById(
+@PathVariable Long jobId){
+
+JobDTO job=jobPostingService.getJobById(jobId);
+
+return ResponseEntity.ok(job);
+
+}
 
 }

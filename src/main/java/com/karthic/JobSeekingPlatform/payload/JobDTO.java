@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class JobDTO {
-
     private String jobName;
     private String role;
     private String requiredSkill;

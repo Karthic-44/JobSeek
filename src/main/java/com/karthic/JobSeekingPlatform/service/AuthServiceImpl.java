@@ -112,7 +112,7 @@ public class AuthServiceImpl implements AuthService {
                         roles.add(adminRole);
 
                         break;
-                    case "seller":
+                    case "recruiter":
                         Role modRole = roleRepository.findByRoleName(AppRole.ROLE_RECRUITER)
                                 .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
                         roles.add(modRole);
@@ -151,7 +151,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UserResponse getAllSellers(Pageable pageable) {
+    public UserResponse getAllRecruiters(Pageable pageable) {
         Page<Users> allUsers = userRepository.findByRoleName(AppRole.ROLE_RECRUITER, pageable);
         List<UsersDTO> userDtos = allUsers.getContent()
                 .stream()

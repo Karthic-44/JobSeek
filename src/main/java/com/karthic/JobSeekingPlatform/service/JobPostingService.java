@@ -10,6 +10,7 @@ public interface JobPostingService {
     JobDTO deleteJob(Long jobId);
 
     JobDTO updateJob(Long jobId, @Valid JobDTO jobDTO);
+    JobDTO getJobById(Long jobId);
 
 
     JobResponse getAllJobs(Integer pageNumber, Integer pageSize, String sortBy, String sortOrder, String keyword);

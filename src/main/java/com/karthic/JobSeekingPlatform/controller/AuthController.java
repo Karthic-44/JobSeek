@@ -59,15 +59,15 @@ public class AuthController {
                 .body(new MessageResponse("You've been signed out!"));
     }
 
-    @GetMapping("/sellers")
-    public ResponseEntity<?> getAllSellers(
+    @GetMapping("/recruiters")
+    public ResponseEntity<?> getAllRecruiters(
             @RequestParam(name = "pageNumber", defaultValue = AppConstants.PAGE_NUMBER, required = false) Integer pageNumber) {
 
         Sort sortByAndOrder = Sort.by(AppConstants.SORT_USER_BY).descending();
         Pageable pageDetails = PageRequest.of(pageNumber ,
                 Integer.parseInt(AppConstants.PAGE_SIZE), sortByAndOrder);
 
-        return ResponseEntity.ok(authService.getAllSellers(pageDetails));
+        return ResponseEntity.ok(authService.getAllRecruiters(pageDetails));
     }
 
 }

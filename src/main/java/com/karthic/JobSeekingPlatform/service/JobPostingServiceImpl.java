@@ -7,6 +7,9 @@ import com.karthic.JobSeekingPlatform.model.Category;
 import com.karthic.JobSeekingPlatform.payload.JobDTO;
 import com.karthic.JobSeekingPlatform.payload.JobResponse;
 import com.karthic.JobSeekingPlatform.repositories.UserRepository;
+
+import jakarta.validation.Valid;
+
 import com.karthic.JobSeekingPlatform.repositories.CategoryRepository;
 import org.modelmapper.ModelMapper;
 import com.karthic.JobSeekingPlatform.repositories.JobRepository;
@@ -140,4 +143,22 @@ public class JobPostingServiceImpl implements JobPostingService {
         jobResponse.setLastPage(pageJobs.isLast());
         return jobResponse;
     }
+
+    @Override
+public JobDTO getJobById(Long jobId){
+
+    Job job = jobRepository.findById(jobId)
+            .orElseThrow(
+                    () -> new ResourceNotFoundException(
+                            "Job",
+                            "jobId",
+                            jobId
+                    )
+            );
+
+    return modelMapper.map(
+            job,
+            JobDTO.class
+    );
+}
 }
