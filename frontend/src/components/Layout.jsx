@@ -58,7 +58,6 @@ export default function Layout() {
 
       <footer className="border-t-2 border-ink">
         <div className="mx-auto max-w-6xl px-4 py-5 text-sm text-ink-soft sm:px-6">
-          Jobseek is a college project: a Spring Boot API with a React front end.
         </div>
       </footer>
     </div>
