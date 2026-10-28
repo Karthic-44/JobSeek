@@ -5,16 +5,16 @@ This is a job seeking platform backend built using java springboot.
 ## Screenshots
 
 ### Homepage
-<img width="1916" height="944" alt="Homepage" src="https://github.com/user-attachments/assets/63b5db4e-5cd7-4ae7-8886-abaa744bfb04" />
+<img width="1914" height="943" alt="Homepage" src="https://github.com/user-attachments/assets/37a00c22-86ef-49b5-9eaa-6e082ae04ea9" />
 
 ## Applications
-<img width="1917" height="944" alt="applications" src="https://github.com/user-attachments/assets/be769cbf-fca5-4d99-a47f-b9e490a7270d" />
+<img width="1913" height="941" alt="applications" src="https://github.com/user-attachments/assets/8f77eb8a-7b27-4f83-8d74-4a34aba92f40" />
 
 ## Post a job
-<img width="1919" height="946" alt="post a job" src="https://github.com/user-attachments/assets/00c54c6a-d0ad-450e-a996-f85d6d5f43ab" />
+<img width="1919" height="948" alt="post a job" src="https://github.com/user-attachments/assets/a226016c-b120-4548-8a65-c3a9f941df39" />
 
 ## Dashboard
-<img width="1917" height="944" alt="dashboard" src="https://github.com/user-attachments/assets/9e93130f-d145-4c3b-8456-0b84a6ab207b" />
+<img width="1915" height="945" alt="dashboard" src="https://github.com/user-attachments/assets/680b41e3-5ec0-4fc7-ada6-52a66bfdb4d7" />
 
 
 
