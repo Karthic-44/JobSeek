@@ -27,12 +27,17 @@ public class Job {
     private Long jobId;
 
     @NotBlank
-    @Size(min=5, message = "Name must contain atleast 5 characters  ")
+    @Size(min=2, message = "Title must contain at least 2 characters")
     private String jobName;
 
     private String role;
+    private String company;
+    private String location;
+    private String salary;
+    private java.time.Instant postedAt;
     private String requiredSkill;
     private String requiredQualifications;
+    @Column(length = 4000)
     private String description;
 
     @ManyToOne

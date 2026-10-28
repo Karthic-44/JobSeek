@@ -1,18 +1,13 @@
 package com.karthic.JobSeekingPlatform.service;
 
-import com.karthic.JobSeekingPlatform.Exception.APIException;
 import com.karthic.JobSeekingPlatform.Exception.ResourceNotFoundException;
-import com.karthic.JobSeekingPlatform.model.Job;
 import com.karthic.JobSeekingPlatform.model.Category;
+import com.karthic.JobSeekingPlatform.model.Job;
 import com.karthic.JobSeekingPlatform.payload.JobDTO;
 import com.karthic.JobSeekingPlatform.payload.JobResponse;
-import com.karthic.JobSeekingPlatform.repositories.UserRepository;
-
-import jakarta.validation.Valid;
-
 import com.karthic.JobSeekingPlatform.repositories.CategoryRepository;
-import org.modelmapper.ModelMapper;
 import com.karthic.JobSeekingPlatform.repositories.JobRepository;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,144 +16,132 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
 public class JobPostingServiceImpl implements JobPostingService {
 
     @Autowired
-    public ModelMapper modelMapper;
-
-    @Autowired
     private JobRepository jobRepository;
-    
-    @Autowired
-    private UserRepository userRepository;
-    
+
     @Autowired
     private CategoryRepository categoryRepository;
 
     @Override
-    public JobDTO createJob(JobDTO jobDTO) {
-        Job jobDb = jobRepository.findByJobName(jobDTO.getJobName());
-        if (jobDb != null) {
-            throw new APIException("Job " + jobDTO.getJobName() + " already exists");
-        }
-        
+    public JobDTO createJob(JobDTO dto) {
         Job job = new Job();
-        job.setJobName(jobDTO.getJobName());
-        job.setRole(jobDTO.getRole());
-        job.setRequiredSkill(jobDTO.getRequiredSkill());
-        job.setRequiredQualifications(jobDTO.getRequiredQualifications());
-        job.setDescription(jobDTO.getDescription());
-        
-        if (jobDTO.getCategoryId() != null) {
-            Category category = categoryRepository.findById(jobDTO.getCategoryId())
-                .orElseThrow(() -> new ResourceNotFoundException("Category", "categoryId", jobDTO.getCategoryId()));
-            job.setCategory(category);
-        }
-        
-        Job savedJob = jobRepository.save(job);
-        return modelMapper.map(savedJob, JobDTO.class);
+        apply(job, dto);
+        job.setPostedAt(Instant.now());
+        return toDTO(jobRepository.save(job));
     }
 
     @Override
     public JobDTO deleteJob(Long jobId) {
-        Job job = jobRepository.findById(jobId)
-                .orElseThrow(() -> new ResourceNotFoundException("Job", "jobId", jobId));
+        Job job = findJob(jobId);
+        JobDTO snapshot = toDTO(job);
         jobRepository.delete(job);
-        return modelMapper.map(job, JobDTO.class);
+        return snapshot;
     }
 
     @Override
-    public JobDTO updateJob(Long jobId, JobDTO jobDTO) {
-        Job jobFromDb = jobRepository.findById(jobId)
-                .orElseThrow(() -> new ResourceNotFoundException("Job", "jobId", jobId));
-
-        jobFromDb.setJobName(jobDTO.getJobName());
-        jobFromDb.setRole(jobDTO.getRole());
-        jobFromDb.setRequiredSkill(jobDTO.getRequiredSkill());
-        jobFromDb.setRequiredQualifications(jobDTO.getRequiredQualifications());
-        jobFromDb.setDescription(jobDTO.getDescription());
-
-        Job savedJob = jobRepository.save(jobFromDb);
-        return modelMapper.map(savedJob, JobDTO.class);
+    public JobDTO updateJob(Long jobId, JobDTO dto) {
+        Job job = findJob(jobId);
+        apply(job, dto);
+        return toDTO(jobRepository.save(job));
     }
 
     @Override
-    public JobResponse getAllJobs(Integer pageNumber, Integer pageSize, String sortBy, String sortOrder, String keyword) {
-        Sort sortByAndOrder = sortOrder.equalsIgnoreCase("asc")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
+    public JobDTO getJobById(Long jobId) {
+        return toDTO(findJob(jobId));
+    }
 
-        Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sortByAndOrder);
+    @Override
+    public JobResponse getAllJobs(Integer pageNumber, Integer pageSize, String sortBy, String sortOrder,
+                                  String keyword, Long categoryId) {
+        Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sort(sortBy, sortOrder));
 
-        Specification<Job> spec = Specification.where(null);
-        if (keyword != null && !keyword.isEmpty()) {
-            spec = spec.and((root, query, criteriaBuilder) ->
-                    criteriaBuilder.like(criteriaBuilder.lower(root.get("jobName")), "%" + keyword.toLowerCase() + "%"));
-        }
+        Specification<Job> spec = (root, query, cb) -> {
+            List<Predicate> parts = new java.util.ArrayList<>();
+            if (keyword != null && !keyword.isBlank()) {
+                String like = "%" + keyword.trim().toLowerCase() + "%";
+                parts.add(cb.or(
+                        cb.like(cb.lower(root.get("jobName")), like),
+                        cb.like(cb.lower(root.get("company")), like),
+                        cb.like(cb.lower(root.get("role")), like),
+                        cb.like(cb.lower(root.get("requiredSkill")), like)));
+            }
+            if (categoryId != null) {
+                parts.add(cb.equal(root.get("category").get("categoryId"), categoryId));
+            }
+            return cb.and(parts.toArray(new Predicate[0]));
+        };
 
-        Page<Job> pageJobs = jobRepository.findAll(spec, pageDetails);
-        List<Job> jobs = pageJobs.getContent();
-
-        List<JobDTO> jobDTOS = jobs.stream()
-                .map(job -> modelMapper.map(job, JobDTO.class))
-                .toList();
-
-        JobResponse jobResponse = new JobResponse();
-        jobResponse.setContent(jobDTOS);
-        jobResponse.setPageNumber(pageJobs.getNumber());
-        jobResponse.setPageSize(pageJobs.getSize());
-        jobResponse.setTotalElements(pageJobs.getTotalElements());
-        jobResponse.setTotalPages(pageJobs.getTotalPages());
-        jobResponse.setLastPage(pageJobs.isLast());
-        return jobResponse;
+        return toResponse(jobRepository.findAll(spec, pageDetails));
     }
 
     @Override
     public JobResponse searchJobByKeyword(String keyword, Integer pageNumber, Integer pageSize, String sortBy, String sortOrder) {
-        Sort sortByAndOrder = sortOrder.equalsIgnoreCase("asc")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
-
-        Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sortByAndOrder);
-        Page<Job> pageJobs = jobRepository.findByJobNameLikeIgnoreCase('%' + keyword + '%', pageDetails);
-
-        List<Job> jobs = pageJobs.getContent();
-        List<JobDTO> jobDTOS = jobs.stream()
-                .map(job -> modelMapper.map(job, JobDTO.class))
-                .toList();
-
-        if (jobs.isEmpty()) {
-            throw new APIException("Jobs not found with keyword: " + keyword);
-        }
-
-        JobResponse jobResponse = new JobResponse();
-        jobResponse.setContent(jobDTOS);
-        jobResponse.setPageNumber(pageJobs.getNumber());
-        jobResponse.setPageSize(pageJobs.getSize());
-        jobResponse.setTotalElements(pageJobs.getTotalElements());
-        jobResponse.setTotalPages(pageJobs.getTotalPages());
-        jobResponse.setLastPage(pageJobs.isLast());
-        return jobResponse;
+        return getAllJobs(pageNumber, pageSize, sortBy, sortOrder, keyword, null);
     }
 
-    @Override
-public JobDTO getJobById(Long jobId){
+    // ---- helpers ----
 
-    Job job = jobRepository.findById(jobId)
-            .orElseThrow(
-                    () -> new ResourceNotFoundException(
-                            "Job",
-                            "jobId",
-                            jobId
-                    )
-            );
+    private Job findJob(Long jobId) {
+        return jobRepository.findById(jobId)
+                .orElseThrow(() -> new ResourceNotFoundException("Job", "jobId", jobId));
+    }
 
-    return modelMapper.map(
-            job,
-            JobDTO.class
-    );
-}
+    private void apply(Job job, JobDTO dto) {
+        job.setJobName(dto.getJobName());
+        job.setRole(dto.getRole());
+        job.setCompany(dto.getCompany());
+        job.setLocation(dto.getLocation());
+        job.setSalary(dto.getSalary());
+        job.setRequiredSkill(dto.getRequiredSkill());
+        job.setRequiredQualifications(dto.getRequiredQualifications());
+        job.setDescription(dto.getDescription());
+
+        if (dto.getCategoryId() != null) {
+            Category category = categoryRepository.findById(dto.getCategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Category", "categoryId", dto.getCategoryId()));
+            job.setCategory(category);
+        } else {
+            job.setCategory(null);
+        }
+    }
+
+    private Sort sort(String sortBy, String sortOrder) {
+        return "asc".equalsIgnoreCase(sortOrder) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+    }
+
+    static JobDTO toDTO(Job job) {
+        JobDTO dto = new JobDTO();
+        dto.setJobId(job.getJobId());
+        dto.setJobName(job.getJobName());
+        dto.setRole(job.getRole());
+        dto.setCompany(job.getCompany());
+        dto.setLocation(job.getLocation());
+        dto.setSalary(job.getSalary());
+        dto.setRequiredSkill(job.getRequiredSkill());
+        dto.setRequiredQualifications(job.getRequiredQualifications());
+        dto.setDescription(job.getDescription());
+        dto.setPostedAt(job.getPostedAt());
+        if (job.getCategory() != null) {
+            dto.setCategoryId(job.getCategory().getCategoryId());
+            dto.setCategoryName(job.getCategory().getCategoryName());
+        }
+        return dto;
+    }
+
+    private JobResponse toResponse(Page<Job> page) {
+        JobResponse r = new JobResponse();
+        r.setContent(page.getContent().stream().map(JobPostingServiceImpl::toDTO).toList());
+        r.setPageNumber(page.getNumber());
+        r.setPageSize(page.getSize());
+        r.setTotalElements(page.getTotalElements());
+        r.setTotalPages(page.getTotalPages());
+        r.setLastPage(page.isLast());
+        return r;
+    }
 }

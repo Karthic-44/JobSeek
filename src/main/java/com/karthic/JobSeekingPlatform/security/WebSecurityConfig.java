@@ -5,7 +5,10 @@ import com.karthic.JobSeekingPlatform.model.AppRole;
 import com.karthic.JobSeekingPlatform.model.Role;
 import com.karthic.JobSeekingPlatform.model.Users;
 import com.karthic.JobSeekingPlatform.repositories.RoleRepository;
-import com.karthic.JobSeekingPlatform.repositories.UserRepository;  
+import com.karthic.JobSeekingPlatform.repositories.UserRepository;
+import com.karthic.JobSeekingPlatform.repositories.CategoryRepository;
+import com.karthic.JobSeekingPlatform.repositories.JobRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -70,30 +73,26 @@ public class WebSecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
-                .cors(cors -> {})  
+                .cors(cors -> {})
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
-                        auth.requestMatchers("/api/auth/**").permitAll()
-                                .requestMatchers("/v3/api-docs/**").permitAll()
-                                .requestMatchers("/h2-console/**").permitAll()
-                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                                .requestMatchers("/api/recruiter/**").hasAnyRole("ADMIN","RECRUITER")
-                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                                // only these three auth endpoints are open; /api/auth/user and
+                                // /api/auth/recruiters used to be public as well
+                                .requestMatchers("/api/auth/signin", "/api/auth/signup", "/api/auth/signout").permitAll()
+                                .requestMatchers("/api/auth/recruiters").hasRole("ADMIN")
+                                // personal data that used to sit under /api/public
+                                .requestMatchers("/api/public/experiences/**", "/api/public/qualifications/**").authenticated()
                                 .requestMatchers("/api/public/**").permitAll()
-                                .requestMatchers("/swagger-ui/**").permitAll()
-                                .requestMatchers("/api/test/**").permitAll()
+                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                                .requestMatchers("/api/recruiter/**").hasAnyRole("ADMIN", "RECRUITER")
                                 .requestMatchers("/images/**").permitAll()
                                 .anyRequest().authenticated()
                 );
 
         http.authenticationProvider(authenticationProvider());
-
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
-        http.headers(headers -> headers.frameOptions(
-                frameOptions -> frameOptions.sameOrigin()));
-        
-        //HeadersConfigurer.FrameOptionsConfig::sameOrigin));
 
         return http.build();
     }
@@ -109,62 +108,51 @@ public class WebSecurityConfig {
     }
 
 
-  @Bean
-public CommandLineRunner initData(RoleRepository roleRepository, UserRepository userRepository, PasswordEncoder passwordEncoder) {
-    return args -> {
-        // Retrieve or create roles
-        Role userRole = roleRepository.findByRoleName(AppRole.ROLE_USER)
-                .orElseGet(() -> roleRepository.save(new Role(AppRole.ROLE_USER)));
+    @Bean
+    public CommandLineRunner initData(RoleRepository roleRepository,
+                                      UserRepository userRepository,
+                                      CategoryRepository categoryRepository,
+                                      JobRepository jobRepository,
+                                      PasswordEncoder passwordEncoder,
+                                      @Value("${app.seed-demo-data:false}") boolean seedDemoData,
+                                      @Value("${app.seed-sample-jobs:false}") boolean seedSampleJobs,
+                                      @Value("${app.seed-admin-password:admin123}") String adminPassword) {
+        return args -> {
+            Role userRole = roleRepository.findByRoleName(AppRole.ROLE_USER)
+                    .orElseGet(() -> roleRepository.save(new Role(AppRole.ROLE_USER)));
+            Role recruiterRole = roleRepository.findByRoleName(AppRole.ROLE_RECRUITER)
+                    .orElseGet(() -> roleRepository.save(new Role(AppRole.ROLE_RECRUITER)));
+            Role adminRole = roleRepository.findByRoleName(AppRole.ROLE_ADMIN)
+                    .orElseGet(() -> roleRepository.save(new Role(AppRole.ROLE_ADMIN)));
 
-        Role recruiterRole = roleRepository.findByRoleName(AppRole.ROLE_RECRUITER)
-                .orElseGet(() -> roleRepository.save(new Role(AppRole.ROLE_RECRUITER)));
+            if (!seedDemoData) {
+                return;
+            }
 
-        Role adminRole = roleRepository.findByRoleName(AppRole.ROLE_ADMIN)
-                .orElseGet(() -> roleRepository.save(new Role(AppRole.ROLE_ADMIN)));
+            seedUser(userRepository, passwordEncoder, "admin", "admin@example.com", adminPassword,
+                    Set.of(userRole, recruiterRole, adminRole));
+            seedUser(userRepository, passwordEncoder, "recruiter", "recruiter@example.com", "recruiter123",
+                    Set.of(recruiterRole));
+            seedUser(userRepository, passwordEncoder, "user", "user@example.com", "password123",
+                    Set.of(userRole));
 
-        // Create users with roles in one go
-        // if (!userRepository.existsByUserName("user1")) {
-        //     Users user1 = new Users("user1", "user1@example.com", passwordEncoder.encode("password1"));
-        //     user1.setRoles(Set.of(userRole));
-        //     userRepository.save(user1);
-        // }
+            if (seedSampleJobs && jobRepository.count() == 0) {
+                SampleData.seed(categoryRepository, jobRepository);
+            }
+        };
+    }
 
-        // if (!userRepository.existsByUserName("recruiter1")) {
-        //     Users recruiter1 = new Users("recruiter1", "recruiter1@example.com", passwordEncoder.encode("password2"));
-        //     recruiter1.setRoles(Set.of(recruiterRole));
-        //     userRepository.save(recruiter1);
-        // }
-
-        if (!userRepository.existsByUserName("admin")) {
-            Users admin = new Users();
-            admin.setUserName("admin");
-            admin.setEmail("admin@example.com"); 
-            admin.setPassword(passwordEncoder.encode("admin"));
-            admin.setRoles(Set.of(userRole, recruiterRole, adminRole));
-            admin.setUserPhoneNumber("1234567890");
-            userRepository.save(admin);
+    private void seedUser(UserRepository repo, PasswordEncoder encoder, String name, String email,
+                          String rawPassword, Set<Role> roles) {
+        if (repo.existsByUserName(name)) {
+            return;
         }
-
-          if (!userRepository.existsByUserName("user")) {
-            Users user = new Users();
-            user.setUserName("user");
-            user.setEmail("user@example.com"); 
-            user.setPassword(passwordEncoder.encode("password"));
-            user.setRoles(Set.of(userRole));
-            user.setUserPhoneNumber("1234567890");
-            userRepository.save(user);
-        }
-
-          if (!userRepository.existsByUserName("recruiter")) {
-            Users recruiter = new Users();
-            recruiter.setUserName("recruiter");
-            recruiter.setEmail("recruiter@example.com"); 
-            recruiter.setPassword(passwordEncoder.encode("recruiter"));
-            recruiter.setRoles(Set.of(recruiterRole));
-            recruiter.setUserPhoneNumber("1234567890");
-            userRepository.save(recruiter);
-        }
-     };
-}
-
+        Users u = new Users();
+        u.setUserName(name);
+        u.setEmail(email);
+        u.setPassword(encoder.encode(rawPassword));
+        u.setRoles(roles);
+        u.setUserPhoneNumber("1234567890");
+        repo.save(u);
+    }
 }

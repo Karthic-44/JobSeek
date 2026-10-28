@@ -25,7 +25,7 @@ public class AuthController {
     AuthService authService;
 
     @PostMapping("/signin")
-    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         AuthenticationResult result = authService.login(loginRequest);
         return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE,
                 result.getJwtCookie().toString())
@@ -48,6 +48,9 @@ public class AuthController {
 
     @GetMapping("/user")
     public ResponseEntity<?> getUserDetails(Authentication authentication){
+        if (authentication == null) {
+            return ResponseEntity.status(401).body(new MessageResponse("Not signed in"));
+        }
         return ResponseEntity.ok().body(authService.getCurrentUserDetails(authentication));
     }
 

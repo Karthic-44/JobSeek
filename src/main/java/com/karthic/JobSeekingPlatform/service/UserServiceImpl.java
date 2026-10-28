@@ -2,7 +2,10 @@ package com.karthic.JobSeekingPlatform.service;
 
 import com.karthic.JobSeekingPlatform.Exception.APIException;
 import com.karthic.JobSeekingPlatform.Exception.ResourceNotFoundException;
+import com.karthic.JobSeekingPlatform.model.AppRole;
 import com.karthic.JobSeekingPlatform.model.Users;
+import com.karthic.JobSeekingPlatform.repositories.RoleRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import com.karthic.JobSeekingPlatform.payload.UserResponse;
 import com.karthic.JobSeekingPlatform.payload.UsersDTO;
 import com.karthic.JobSeekingPlatform.repositories.UserRepository;
@@ -25,6 +28,12 @@ public class UserServiceImpl implements UserService{
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private RoleRepository roleRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Override
     public UsersDTO createUser(UsersDTO userDTO) {
         Users user = modelMapper.map(userDTO,Users.class);
@@ -32,6 +41,13 @@ public class UserServiceImpl implements UserService{
         if (userDb!=null){
             throw new APIException("User "+ user.getUserName() + " already exists");
         }
+        if (userDTO.getPassword() == null || userDTO.getPassword().length() < 6) {
+            throw new APIException("Password must be at least 6 characters");
+        }
+        // The password used to be stored as plain text, and the user had no role, so nobody could sign in as them.
+        user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
+        user.getRoles().add(roleRepository.findByRoleName(AppRole.ROLE_USER)
+                .orElseThrow(() -> new APIException("Default role is missing")));
         Users savedUser = userRepository.save(user);
         return  modelMapper.map(savedUser, UsersDTO.class);
     }
@@ -57,10 +73,6 @@ public class UserServiceImpl implements UserService{
         List<UsersDTO> usersDTOS = users.stream()
                 .map(user -> modelMapper.map(user, UsersDTO.class))
                 .toList();
-
-        if(users.isEmpty()){
-            throw new APIException("Users not found with keyword: " + keyword);
-        }
 
         UserResponse usersResponse = new UserResponse();
         usersResponse.setContent(usersDTOS);
@@ -109,9 +121,14 @@ public class UserServiceImpl implements UserService{
 
         usersFromDb.setUserName(users.getUserName());
         usersFromDb.setEmail(users.getEmail());
-        usersFromDb.setPassword(users.getPassword());
+        // Only change the password when a new one was sent, and always store it hashed.
+        if (usersDTO.getPassword() != null && !usersDTO.getPassword().isBlank()) {
+            usersFromDb.setPassword(passwordEncoder.encode(usersDTO.getPassword()));
+        }
         usersFromDb.setUserPhoneNumber(users.getUserPhoneNumber());
-        usersFromDb.setSkills(users.getSkills());
+        if (users.getSkills() != null) {
+            usersFromDb.setSkills(users.getSkills());
+        }
 
 
         Users savedUsers = userRepository.save(usersFromDb);

@@ -13,11 +13,16 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+       
+        String origin = frontEndUrl.trim();
+        while (origin.endsWith("/")) {
+            origin = origin.substring(0, origin.length() - 1);
+        }
+
         registry.addMapping("/**")
-                .allowedOrigins("http://localhost:3000", frontEndUrl)
-                .allowedMethods("GET","POST","PUT","DELETE","OPTIONS")
+                .allowedOrigins(origin)
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true);
     }
 }
-

@@ -1,59 +1,50 @@
-import { useState } from 'react'
-import './App.css'
-import { BrowserRouter as Router, Route, Routes} from 'react-router-dom'
-import {Toaster} from 'react-hot-toast';
-import React from 'react'
-import Contact from './components/Contact'
-import Navbar from './components/shared/Navbar'
-import Home from './components/home/Home'
-import About from './components/About'
-import LogIn from './components/auth/Login'
-import Register from './components/auth/Register'
-import PrivateRoute from './components/PrivateRoute'
-import AdminLayout from './components/admin/AdminLayout'
-import Dashboard from './components/admin/dashboard/Dashboard'
-import AdminJobs from './components/admin/jobs/AdminJobs'
-import Recruiters from './components/admin/recruiters/Recruiters'
-import Category from './components/admin/categories/Category'
-import Jobs from './components/jobs/Jobs';
+import { Link, Route, Routes } from 'react-router-dom'
+import Layout from './components/Layout'
+import Guard from './components/Guard'
+import Home from './pages/Home'
+import JobDetail from './pages/JobDetail'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import MyApplications from './pages/MyApplications'
+import Dashboard from './pages/dashboard/Dashboard'
+import DashboardJobs from './pages/dashboard/DashboardJobs'
+import Applicants from './pages/dashboard/Applicants'
+import Categories from './pages/dashboard/Categories'
+import Recruiters from './pages/dashboard/Recruiters'
+import Overview from './pages/dashboard/Overview'
 
-
-
-
-
-
-function App() {
-  const [count, setCount] = useState(0)
-
+function NotFound() {
   return (
-    <React.Fragment>
-         <Router>
-        <Navbar />
-        <Routes>
-          <Route path='/' element={<Home/>} />
-          <Route path='/contact' element={<Contact />} />
-          <Route path='/about' element={<About />} />
-          <Route path='/jobs' element={<Jobs />} />
-
-          <Route path='/' element={< PrivateRoute publicPage />}>
-            <Route path='/login' element={<LogIn />} />
-            <Route path='/register' element={<Register />} />
-          </Route>
-
-          <Route path='/' element={<PrivateRoute adminOnly />}>
-            <Route path='/admin' element={ <AdminLayout />}>
-              <Route path='' element={<Dashboard />} />
-              <Route path='jobs' element={<AdminJobs />} />
-              <Route path='recruiters' element={<Recruiters />} />
-              <Route path='categories' element={<Category />} />
-            </Route>
-            
-          </Route>
-          </Routes>
-          </Router>
-          <Toaster position= 'bottom-center' />
-    </React.Fragment>
+    <div className="max-w-xl">
+      <h1 className="text-4xl font-bold">No page at this address</h1>
+      <p className="mt-3 text-ink-soft">The link may be old, or the job may have been taken down.</p>
+      <Link to="/" className="mt-5 inline-block font-semibold underline underline-offset-4 hover:bg-mark">
+        Go to the job list
+      </Link>
+    </div>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<Home />} />
+        <Route path="jobs/:id" element={<JobDetail />} />
+        <Route path="login" element={<Login />} />
+        <Route path="register" element={<Register />} />
+        <Route path="applications" element={<Guard><MyApplications /></Guard>} />
+
+        <Route path="dashboard" element={<Guard role="recruiter"><Dashboard /></Guard>}>
+          <Route index element={<DashboardJobs />} />
+          <Route path="jobs/:id/applicants" element={<Applicants />} />
+          <Route path="categories" element={<Guard role="admin"><Categories /></Guard>} />
+          <Route path="recruiters" element={<Guard role="admin"><Recruiters /></Guard>} />
+          <Route path="overview" element={<Guard role="admin"><Overview /></Guard>} />
+        </Route>
+
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
+  )
+}

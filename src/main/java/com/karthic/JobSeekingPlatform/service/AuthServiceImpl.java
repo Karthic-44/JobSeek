@@ -71,7 +71,7 @@ public class AuthServiceImpl implements AuthService {
                 .collect(Collectors.toList());
 
         UserInfoResponse response = new UserInfoResponse(userDetails.getId(),
-                userDetails.getUsername(), roles, userDetails.getEmail(), jwtCookie.toString());
+                userDetails.getUsername(), roles, userDetails.getEmail());
 
         return new AuthenticationResult(response, jwtCookie);
     }
@@ -96,35 +96,16 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(signUpRequest.getEmail());
         user.setPassword(encoder.encode(signUpRequest.getPassword()));
 
-        Set<String> strRoles = signUpRequest.getRole();
+        // Self sign-up can only create job seekers or recruiters. Admin accounts are never
+        // created from a public request (this used to accept "admin" in the request body).
+        Set<String> requested = signUpRequest.getRole();
+        AppRole wanted = (requested != null && requested.contains("recruiter"))
+                ? AppRole.ROLE_RECRUITER
+                : AppRole.ROLE_USER;
+        Role role = roleRepository.findByRoleName(wanted)
+                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
         Set<Role> roles = new HashSet<>();
-
-        if (strRoles == null) {
-            Role userRole = roleRepository.findByRoleName(AppRole.ROLE_USER)
-                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-            roles.add(userRole);
-        } else {
-            strRoles.forEach(role -> {
-                switch (role) {
-                    case "admin":
-                        Role adminRole = roleRepository.findByRoleName(AppRole.ROLE_ADMIN)
-                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                        roles.add(adminRole);
-
-                        break;
-                    case "recruiter":
-                        Role modRole = roleRepository.findByRoleName(AppRole.ROLE_RECRUITER)
-                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                        roles.add(modRole);
-
-                        break;
-                    default:
-                        Role userRole = roleRepository.findByRoleName(AppRole.ROLE_USER)
-                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                        roles.add(userRole);
-                }
-            });
-        }
+        roles.add(role);
 
         user.setRoles(roles);
         userRepository.save(user);
@@ -140,7 +121,7 @@ public class AuthServiceImpl implements AuthService {
                 .collect(Collectors.toList());
 
         UserInfoResponse response = new UserInfoResponse(userDetails.getId(),
-                userDetails.getUsername(), roles);
+                userDetails.getUsername(), roles, userDetails.getEmail());
 
         return response;
     }

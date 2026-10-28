@@ -35,9 +35,6 @@ public class CategoryServiceImpl implements CategoryService{
         Pageable pageDetails = PageRequest.of(pageNumber,pageSize,sortByAndOrder);
         Page<Category> categoryPage = categoryRepository.findAll(pageDetails);
         List<Category> categories = categoryPage.getContent();
-        if (categories.isEmpty())
-            throw new APIException("No category available");
-
         List<CategoryDTO> categoryDTOS = categories.stream()
                 .map(category -> modelMapper.map(category, CategoryDTO.class)).toList();
 
@@ -83,10 +80,8 @@ public class CategoryServiceImpl implements CategoryService{
         Category savedCategory=categoryRepository.findById(categoryId)
                 .orElseThrow(()-> new ResourceNotFoundException("Category","categoryId",categoryId) );
 
-        Category category = modelMapper.map(categoryDTO,Category.class);
-        category.setCategoryId(categoryId);
-
-        savedCategory=categoryRepository.save(category);
+        savedCategory.setCategoryName(categoryDTO.getCategoryName());
+        savedCategory=categoryRepository.save(savedCategory);
         return modelMapper.map(savedCategory, CategoryDTO.class);
     }
 

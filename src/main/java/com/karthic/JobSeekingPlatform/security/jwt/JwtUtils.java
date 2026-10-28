@@ -2,7 +2,6 @@ package com.karthic.JobSeekingPlatform.security.jwt;
 
 import com.karthic.JobSeekingPlatform.security.services.UserDetailsImpl;
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,6 +29,9 @@ public class JwtUtils {
     @Value("${spring.app.jwtCookieName}")
     private String jwtCookie;
 
+    @Value("${spring.app.jwtCookieSecure:false}")
+    private boolean cookieSecure;
+
     public String getJwtFromCookies(HttpServletRequest request){
         Cookie cookie = WebUtils.getCookie(request,jwtCookie);
         if (cookie!=null){
@@ -54,20 +56,21 @@ public class JwtUtils {
         String jwt = generateTokenFromUsername(userPrincipal.getUsername());
         ResponseCookie cookie = ResponseCookie.from(jwtCookie,jwt)
                 .path("/api")
-                .maxAge(24*60*60)
-                .httpOnly(false)
-                
-                //test
-                .secure(false)
-                //test
-
+                .maxAge(jwtExpirationMs / 1000)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite("Lax")
                 .build();
         return cookie;
     }
 
     public ResponseCookie getCleanJwtCookie(){
-        ResponseCookie cookie = ResponseCookie.from(jwtCookie,null)
+        ResponseCookie cookie = ResponseCookie.from(jwtCookie, "")
                 .path("/api")
+                .maxAge(0)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite("Lax")
                 .build();
         return cookie;
     }
@@ -89,7 +92,7 @@ public class JwtUtils {
     }
 
     private Key key() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     public boolean validateJwtToken(String authToken) {
@@ -105,6 +108,8 @@ public class JwtUtils {
             logger.error("JWT token is unsupported: {}", e.getMessage());
         } catch (IllegalArgumentException e) {
             logger.error("JWT claims string is empty: {}", e.getMessage());
+        } catch (JwtException e) {
+            logger.error("JWT token is invalid: {}", e.getMessage());
         }
         return false;
     }

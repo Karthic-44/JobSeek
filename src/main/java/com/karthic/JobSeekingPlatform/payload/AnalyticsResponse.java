@@ -10,4 +10,7 @@ import lombok.NoArgsConstructor;
 public class AnalyticsResponse {
 
     private String totalJobs;
+    private long totalCategories;
+    private long totalApplications;
+    private long totalRecruiters;
 }

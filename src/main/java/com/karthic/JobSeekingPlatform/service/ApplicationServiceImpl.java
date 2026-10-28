@@ -1,10 +1,5 @@
 package com.karthic.JobSeekingPlatform.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-
 import com.karthic.JobSeekingPlatform.Exception.APIException;
 import com.karthic.JobSeekingPlatform.Exception.ResourceNotFoundException;
 import com.karthic.JobSeekingPlatform.model.Application;
@@ -15,158 +10,148 @@ import com.karthic.JobSeekingPlatform.payload.ApplicationResponse;
 import com.karthic.JobSeekingPlatform.repositories.ApplicationRepository;
 import com.karthic.JobSeekingPlatform.repositories.JobRepository;
 import com.karthic.JobSeekingPlatform.repositories.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
 
-import java.util.List;
-
-import org.modelmapper.ModelMapper;
+import java.util.Date;
 
 @Service
 public class ApplicationServiceImpl implements ApplicationService {
-    
-    @Autowired
-    private ModelMapper modelMapper;
 
     @Autowired
     private ApplicationRepository applicationRepository;
-    
+
     @Autowired
     private JobRepository jobRepository;
-    
+
     @Autowired
     private UserRepository usersRepository;
-    
 
     @Override
-    public ApplicationDTO createApplication(ApplicationDTO applicationDTO) {
-        if (applicationDTO.getApplicationId() != null) {
-            Application existingApp = applicationRepository.findByApplicationId(applicationDTO.getApplicationId());
-            if (existingApp != null) {
-                throw new APIException("Application " + applicationDTO.getApplicationId() + " already exists");
-            }
+    public ApplicationDTO createApplication(Long userId, ApplicationDTO dto) {
+        Job job = jobRepository.findById(dto.getJobId())
+                .orElseThrow(() -> new ResourceNotFoundException("Job", "jobId", dto.getJobId()));
+        Users user = usersRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "userId", userId));
+
+        if (applicationRepository.existsByUser_UserIdAndJob_JobId(userId, job.getJobId())) {
+            throw new APIException("You have already applied for this job");
         }
-        
-        Job job = jobRepository.findById(applicationDTO.getJobId())
-            .orElseThrow(() -> new ResourceNotFoundException("Job", "jobId", applicationDTO.getJobId()));
-            
-        Users user = usersRepository.findById(applicationDTO.getUserId())
-            .orElseThrow(() -> new ResourceNotFoundException("User", "userId", applicationDTO.getUserId()));
-        
-       
-        
+
         Application application = new Application();
         application.setJob(job);
         application.setUser(user);
-        application.setAppliedDate(applicationDTO.getAppliedDate());
-        application.setResumeURL(applicationDTO.getResumeURL());
-        
-        Application savedApplication = applicationRepository.save(application);
-        return modelMapper.map(savedApplication, ApplicationDTO.class);
+        application.setAppliedDate(new Date());
+        application.setResumeURL(dto.getResumeURL());
+        return toDTO(applicationRepository.save(application));
     }
 
     @Override
     public ApplicationResponse getAllApplications(Long userId, Integer pageNumber, Integer pageSize, String sortBy,
-            String sortOrder, String keyword) {
-            Users user = usersRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("User", "userId", userId));
-    
-    Sort sortByAndOrder = sortOrder.equalsIgnoreCase("asc")
-            ? Sort.by(sortBy).ascending()
-            : Sort.by(sortBy).descending();
+                                                  String sortOrder, String keyword) {
+        Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sort(sortBy, sortOrder));
 
-    Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sortByAndOrder);
+        Specification<Application> spec = (root, query, cb) -> {
+            var mine = cb.equal(root.get("user").get("userId"), userId);
+            if (keyword == null || keyword.isBlank()) {
+                return mine;
+            }
+            String like = "%" + keyword.trim().toLowerCase() + "%";
+            return cb.and(mine, cb.or(
+                    cb.like(cb.lower(root.get("job").get("jobName")), like),
+                    cb.like(cb.lower(root.get("job").get("company")), like)));
+        };
 
-    Specification<Application> spec = Specification.where(null);
-    
-    spec = spec.and((root, query, criteriaBuilder) ->
-            criteriaBuilder.equal(root.get("user").get("userId"), userId));
-    
-    if (keyword != null && !keyword.isEmpty()) {
-        spec = spec.and((root, query, criteriaBuilder) ->
-                criteriaBuilder.or(
-                    criteriaBuilder.like(criteriaBuilder.lower(root.get("job").get("jobName")), 
-                        "%" + keyword.toLowerCase() + "%"),
-                    criteriaBuilder.like(criteriaBuilder.lower(root.get("job").get("role")), 
-                        "%" + keyword.toLowerCase() + "%")
-                ));
+        return toResponse(applicationRepository.findAll(spec, pageDetails));
     }
 
-    Page<Application> pageApplications = applicationRepository.findAll(spec, pageDetails);
-    List<Application> applications = pageApplications.getContent();
-
-    List<ApplicationDTO> applicationDTOS = applications.stream()
-            .map(application -> modelMapper.map(application, ApplicationDTO.class))
-            .toList();
-
-    ApplicationResponse applicationResponse = new ApplicationResponse();
-    applicationResponse.setContent(applicationDTOS);
-    applicationResponse.setPageNumber(pageApplications.getNumber());
-    applicationResponse.setPageSize(pageApplications.getSize());
-    applicationResponse.setTotalElements(pageApplications.getTotalElements());
-    applicationResponse.setTotalPages(pageApplications.getTotalPages());
-    applicationResponse.setLastPage(pageApplications.isLast());
-    
-    return applicationResponse;
-}
+    @Override
+    public ApplicationResponse getApplicationsForJob(Long jobId, Integer pageNumber, Integer pageSize) {
+        if (!jobRepository.existsById(jobId)) {
+            throw new ResourceNotFoundException("Job", "jobId", jobId);
+        }
+        Pageable pageDetails = PageRequest.of(pageNumber, pageSize, Sort.by("applicationId").descending());
+        return toResponse(applicationRepository.findByJob_JobId(jobId, pageDetails));
+    }
 
     @Override
     public ApplicationResponse searchApplicationsById(Long applicationId, Integer pageNumber, Integer pageSize,
-            String sortBy, String sortOrder) {
-               
-Sort sortByAndOrder = sortOrder.equalsIgnoreCase("asc")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
-
-        Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sortByAndOrder);
-        Page<Application> pageApplication = applicationRepository.findByApplicationId(applicationId, pageDetails);
-
-        List<Application> applications = pageApplication.getContent();
-        
-        if(applications.isEmpty()){
-            throw new APIException("Application not found with id: " + applicationId);
-        }
-        
-        List<ApplicationDTO> applicationsDTOS = applications.stream()
-                .map(application -> modelMapper.map(application, ApplicationDTO.class))
-                .toList();
-
-       
-
-        ApplicationResponse applicationResponse = new ApplicationResponse();
-        applicationResponse.setContent(applicationsDTOS);
-        applicationResponse.setPageNumber(pageApplication.getNumber());
-        applicationResponse.setPageSize(pageApplication.getSize());
-        applicationResponse.setTotalElements(pageApplication.getTotalElements());
-        applicationResponse.setTotalPages(pageApplication.getTotalPages());
-        applicationResponse.setLastPage(pageApplication.isLast());
-        return applicationResponse;            }
-
+                                                      String sortBy, String sortOrder) {
+        Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sort(sortBy, sortOrder));
+        return toResponse(applicationRepository.findByApplicationId(applicationId, pageDetails));
+    }
 
     @Override
     public ApplicationDTO deleteApplication(Long applicationId) {
-
-    Application application = applicationRepository.findById(applicationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Application","applicationId",applicationId) );
-
+        Application application = find(applicationId);
+        ApplicationDTO snapshot = toDTO(application);
         applicationRepository.delete(application);
-        return modelMapper.map(application,ApplicationDTO.class);    }
+        return snapshot;
+    }
 
     @Override
-    public ApplicationDTO updateApplication(Long applicationId, ApplicationDTO applicationDTO) {
-Application applicationFromDb = applicationRepository.findById(applicationId)
+    public ApplicationDTO withdrawApplication(Long userId, Long applicationId) {
+        Application application = find(applicationId);
+        if (!application.getUser().getUserId().equals(userId)) {
+            // same message as "not found" so ids of other people's applications are not revealed
+            throw new ResourceNotFoundException("Application", "applicationId", applicationId);
+        }
+        ApplicationDTO snapshot = toDTO(application);
+        applicationRepository.delete(application);
+        return snapshot;
+    }
+
+    @Override
+    public ApplicationDTO updateApplication(Long applicationId, ApplicationDTO dto) {
+        Application application = find(applicationId);
+        if (dto.getResumeURL() != null) {
+            application.setResumeURL(dto.getResumeURL());
+        }
+        return toDTO(applicationRepository.save(application));
+    }
+
+    // ---- helpers ----
+
+    private Application find(Long applicationId) {
+        return applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application", "applicationId", applicationId));
+    }
 
-        Application application = modelMapper.map(applicationDTO, Application.class);
+    private Sort sort(String sortBy, String sortOrder) {
+        return "asc".equalsIgnoreCase(sortOrder) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+    }
 
-        applicationFromDb.setAppliedDate(application.getAppliedDate());
-        applicationFromDb.setResumeURL(application.getResumeURL());
+    private ApplicationDTO toDTO(Application a) {
+        ApplicationDTO dto = new ApplicationDTO();
+        dto.setApplicationId(a.getApplicationId());
+        dto.setAppliedDate(a.getAppliedDate());
+        dto.setResumeURL(a.getResumeURL());
+        if (a.getUser() != null) {
+            dto.setUserId(a.getUser().getUserId());
+            dto.setUserName(a.getUser().getUserName());
+            dto.setUserEmail(a.getUser().getEmail());
+        }
+        if (a.getJob() != null) {
+            dto.setJobId(a.getJob().getJobId());
+            dto.setJobName(a.getJob().getJobName());
+            dto.setCompany(a.getJob().getCompany());
+        }
+        return dto;
+    }
 
-        Application savedApplication = applicationRepository.save(applicationFromDb);
-
-        return modelMapper.map(savedApplication, ApplicationDTO.class);    }
-    
-
-
+    private ApplicationResponse toResponse(Page<Application> page) {
+        ApplicationResponse r = new ApplicationResponse();
+        r.setContent(page.getContent().stream().map(this::toDTO).toList());
+        r.setPageNumber(page.getNumber());
+        r.setPageSize(page.getSize());
+        r.setTotalElements(page.getTotalElements());
+        r.setTotalPages(page.getTotalPages());
+        r.setLastPage(page.isLast());
+        return r;
+    }
 }

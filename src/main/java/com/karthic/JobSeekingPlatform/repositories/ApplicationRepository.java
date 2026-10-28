@@ -11,6 +11,10 @@ public interface ApplicationRepository extends JpaRepository<Application,Long>, 
 
     Application findByApplicationId(Long applicationId);
 
+    boolean existsByUser_UserIdAndJob_JobId(Long userId, Long jobId);
+
+    Page<Application> findByJob_JobId(Long jobId, Pageable pageDetails);
+
     Page<Application> findByApplicationId(Long applicationId, Pageable pageDetails);
 
     

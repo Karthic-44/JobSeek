@@ -32,7 +32,7 @@ import com.karthic.JobSeekingPlatform.service.UserService;
 
     }
 
-    @GetMapping("/public/users/{keyword}")
+    @GetMapping("/admin/users/search/{keyword}")
     public ResponseEntity<UserResponse> getUsersByKeyword(@PathVariable String keyword,
                                                                 @RequestParam(name = "pageNumber", defaultValue= AppConstants.PAGE_NUMBER,required = false) Integer pageNumber,
                                                                 @RequestParam(name="pageSize", defaultValue= AppConstants.PAGE_SIZE,required = false) Integer pageSize,
@@ -43,7 +43,7 @@ import com.karthic.JobSeekingPlatform.service.UserService;
         return new ResponseEntity<>(userResponse,HttpStatus.OK);
     }
 
-    @GetMapping("/public/users/id/{userId}")
+    @GetMapping("/admin/users/id/{userId}")
     public ResponseEntity<UserResponse> getUsersById(@PathVariable Long userId,
                                                           @RequestParam(name = "pageNumber", defaultValue= AppConstants.PAGE_NUMBER,required = false) Integer pageNumber,
                                                           @RequestParam(name="pageSize", defaultValue= AppConstants.PAGE_SIZE,required = false) Integer pageSize,
